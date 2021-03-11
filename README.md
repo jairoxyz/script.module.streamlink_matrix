@@ -1,8 +1,8 @@
-# [Streamlink][streamlink-website] for Kodi
+# [Streamlink][streamlink-website] for Kodi Matrix
 
-Streamlink repacked for Kodi.
+Streamlink repacked for Kodi Matrix.
 
-Installation: clone repo, change dependencies in addon.xml to the correct Kodi version, make a zip file and get dependencies from [here]. There are also some ready to install zips under [there].
+Installation: clone repo, make a zip file and get dependencies from [here]. There are also some ready to install zips under [there].
 
 
 
