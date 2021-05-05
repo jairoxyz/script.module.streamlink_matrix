@@ -4,7 +4,8 @@ import shutil
 import tempfile
 from time import mktime, time
 
-import xbmc, xbmcvfs
+import xbmc
+import xbmcvfs
 
 try:
     xdg_cache = xbmc.translatePath('special://profile/addon_data/script.module.streamlink')
