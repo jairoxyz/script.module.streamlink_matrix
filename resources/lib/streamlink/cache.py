@@ -4,25 +4,14 @@ import shutil
 import tempfile
 from time import mktime, time
 
-import xbmc
-import xbmcvfs
+from streamlink.compat import is_win32
 
-try:
-    xdg_cache = xbmc.translatePath('special://profile/addon_data/script.module.streamlink')
-except:
-    xdg_cache = xbmcvfs.translatePath('special://profile/addon_data/script.module.streamlink')
-try:
-    temp_dir = xbmc.translatePath('special://temp')
-except:
-    temp_dir = xbmcvfs.translatePath('special://temp')
+if is_win32:
+    xdg_cache = os.environ.get("APPDATA", os.path.expanduser("~"))
+else:
+    xdg_cache = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
 
 cache_dir = os.path.join(xdg_cache, "streamlink")
-
-temp_streamlink = os.path.join(temp_dir, 'script.module.streamlink')
-if not xbmcvfs.exists(cache_dir):
-    xbmcvfs.mkdirs(cache_dir)
-if not xbmcvfs.exists(temp_streamlink):
-    xbmcvfs.mkdirs(temp_streamlink)
 
 
 class Cache:
@@ -59,7 +48,7 @@ class Cache:
         return len(pruned) > 0
 
     def _save(self):
-        fd, tempname = tempfile.mkstemp(dir=temp_streamlink)
+        fd, tempname = tempfile.mkstemp()
         fd = os.fdopen(fd, "w")
         json.dump(self._cache, fd, indent=2, separators=(",", ": "))
         fd.close()
