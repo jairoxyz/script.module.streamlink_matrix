@@ -3,24 +3,17 @@ import os
 import shutil
 import tempfile
 from time import mktime, time
-
-import xbmc
 import xbmcvfs
 
-try:
-    xdg_cache = xbmc.translatePath('special://profile/addon_data/script.module.streamlink')
-except:
-    xdg_cache = xbmcvfs.translatePath('special://profile/addon_data/script.module.streamlink')
-try:
-    temp_dir = xbmc.translatePath('special://temp')
-except:
-    temp_dir = xbmcvfs.translatePath('special://temp')
 
+xdg_cache = xbmcvfs.translatePath('special://profile/addon_data/script.module.streamlink')
+temp_dir = xbmcvfs.translatePath('special://temp')
 cache_dir = os.path.join(xdg_cache, "streamlink")
-
 temp_streamlink = os.path.join(temp_dir, 'script.module.streamlink')
+
 if not xbmcvfs.exists(cache_dir):
     xbmcvfs.mkdirs(cache_dir)
+
 if not xbmcvfs.exists(temp_streamlink):
     xbmcvfs.mkdirs(temp_streamlink)
 
