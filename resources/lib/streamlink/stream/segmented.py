@@ -115,8 +115,7 @@ class SegmentedStreamWriter(Thread):
 
         self.retries = retries
         self.timeout = timeout
-        self.threads = threads
-        self.executor = CompatThreadPoolExecutor(max_workers=self.threads)
+        self.executor = CompatThreadPoolExecutor(max_workers=threads)
         self.futures = queue.Queue(size)
 
         super().__init__(daemon=True, name=f"Thread-{self.__class__.__name__}")

@@ -13,7 +13,8 @@ log = logging.getLogger(__name__)
 class GalatasarayTV(Plugin):
     playervars_re = re.compile(r"sources\s*:\s*\[\s*\{\s*type\s*:\s*\"(.*?)\",\s*src\s*:\s*\"(.*?)\"", re.DOTALL)
 
-    title = "Galatasaray TV"
+    def get_title(self):
+        return "Galatasaray TV"
 
     def _get_streams(self):
         res = self.session.http.get(self.url)

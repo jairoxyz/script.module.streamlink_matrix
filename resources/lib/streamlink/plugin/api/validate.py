@@ -20,23 +20,14 @@ from copy import copy as copy_obj
 from functools import singledispatch
 from typing import Any, Tuple, Union
 from urllib.parse import urlparse
-
-from lxml.etree import Element, iselement
+from xml.etree import ElementTree as ET
 
 from streamlink.exceptions import PluginError
-from streamlink.utils.parse import (
-    parse_html as _parse_html,
-    parse_json as _parse_json,
-    parse_qsd as _parse_qsd,
-    parse_xml as _parse_xml
-)
-
 
 __all__ = [
     "any", "all", "filter", "get", "getattr", "hasattr", "length", "optional",
     "transform", "text", "union", "union_get", "url", "startswith", "endswith", "contains",
-    "xml_element", "xml_find", "xml_findall", "xml_findtext", "xml_xpath", "xml_xpath_string",
-    "parse_json", "parse_html", "parse_xml", "parse_qsd",
+    "xml_element", "xml_find", "xml_findall", "xml_findtext",
     "validate", "Schema", "SchemaContainer"
 ]
 
@@ -77,10 +68,8 @@ class SchemaContainer:
 class transform:
     """Applies function to value to transform it."""
 
-    def __init__(self, func, *args, **kwargs):
+    def __init__(self, func):
         self.func = func
-        self.args = args
-        self.kwargs = kwargs
 
 
 class optional:
@@ -111,9 +100,6 @@ class xml_element:
         self.tag = tag
         self.text = text
         self.attrib = attrib
-
-
-# ----
 
 
 def length(length):
@@ -178,8 +164,8 @@ def get(item: Union[Any, Tuple[Any]], default: Any = None, strict: bool = False)
         idx = 0
         try:
             for key in item:
-                if iselement(value):
-                    value = value.attrib[key]
+                if ET.iselement(value):
+                    value = value.attrib
                 # Use .group() if this is a regex match object
                 elif _is_re_match(value):
                     value = value.group(key)
@@ -289,12 +275,12 @@ def url(**attributes):
 def xml_find(xpath):
     """Find a XML element via xpath."""
     def xpath_find(value):
-        validate(iselement, value)
+        validate(ET.iselement, value)
         value = value.find(xpath)
         if value is None:
-            raise ValueError(f"XPath '{xpath}' did not return an element")
+            raise ValueError("XPath '{0}' did not return an element".format(xpath))
 
-        return validate(iselement, value)
+        return validate(ET.iselement, value)
 
     return transform(xpath_find)
 
@@ -302,7 +288,7 @@ def xml_find(xpath):
 def xml_findall(xpath):
     """Find a list of XML elements via xpath."""
     def xpath_findall(value):
-        validate(iselement, value)
+        validate(ET.iselement, value)
         return value.findall(xpath)
 
     return transform(xpath_findall)
@@ -314,37 +300,6 @@ def xml_findtext(xpath):
         xml_find(xpath),
         getattr("text"),
     )
-
-
-def xml_xpath(xpath):
-    def transform_xpath(value):
-        validate(iselement, value)
-        return value.xpath(xpath) or None
-
-    return transform(transform_xpath)
-
-
-def xml_xpath_string(xpath):
-    return xml_xpath(f"string({xpath})")
-
-
-def parse_json(*args, **kwargs):
-    return transform(_parse_json, *args, **kwargs, exception=ValueError, schema=None)
-
-
-def parse_html(*args, **kwargs):
-    return transform(_parse_html, *args, **kwargs, exception=ValueError, schema=None)
-
-
-def parse_xml(*args, **kwargs):
-    return transform(_parse_xml, *args, **kwargs, exception=ValueError, schema=None)
-
-
-def parse_qsd(*args, **kwargs):
-    return transform(_parse_qsd, *args, **kwargs, exception=ValueError, schema=None)
-
-
-# ----
 
 
 @singledispatch
@@ -383,9 +338,9 @@ def validate_all(schemas, value):
 
 
 @validate.register(transform)
-def validate_transform(schema: transform, value):
+def validate_transform(schema, value):
     validate(callable, schema.func)
-    return schema.func(value, *schema.args, **schema.kwargs)
+    return schema.func(value)
 
 
 @validate.register(list)
@@ -438,31 +393,27 @@ def validate_type(schema, value):
 
 @validate.register(xml_element)
 def validate_xml_element(schema, value):
-    validate(iselement, value)
-    _tag = value.tag
-    _attrib = value.attrib
-    _text = value.text
+    validate(ET.iselement, value)
+    new = ET.Element(value.tag, attrib=value.attrib)
 
     if schema.attrib is not None:
         try:
-            _attrib = validate(schema.attrib, dict(value.attrib))
+            new.attrib = validate(schema.attrib, value.attrib)
         except ValueError as err:
-            raise ValueError(f"Unable to validate XML attributes: {err}")
+            raise ValueError("Unable to validate XML attributes: {0}".format(err))
 
     if schema.tag is not None:
         try:
-            _tag = validate(schema.tag, value.tag)
+            new.tag = validate(schema.tag, value.tag)
         except ValueError as err:
-            raise ValueError(f"Unable to validate XML tag: {err}")
+            raise ValueError("Unable to validate XML tag: {0}".format(err))
 
     if schema.text is not None:
         try:
-            _text = validate(schema.text, value.text)
+            new.text = validate(schema.text, value.text)
         except ValueError as err:
-            raise ValueError(f"Unable to validate XML text: {err}")
+            raise ValueError("Unable to validate XML text: {0}".format(err))
 
-    new = Element(_tag, _attrib)
-    new.text = _text
     for child in value:
         new.append(child)
 

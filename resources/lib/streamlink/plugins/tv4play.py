@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
     /(?P<video_id>\d+)
 """, re.VERBOSE))
 class TV4Play(Plugin):
+    title = None
     video_id = None
 
     api_url = "https://playback-api.b17g.net"

@@ -43,8 +43,12 @@ Fragment = namedtuple("Fragment", "segment fragment duration url")
 
 
 class HDSStreamWriter(SegmentedStreamWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, reader, *args, **kwargs):
+        options = reader.stream.session.options
+        kwargs["retries"] = options.get("hds-segment-attempts")
+        kwargs["threads"] = options.get("hds-segment-threads")
+        kwargs["timeout"] = options.get("hds-segment-timeout")
+        SegmentedStreamWriter.__init__(self, reader, *args, **kwargs)
 
         duration, tags = None, []
         if self.stream.metadata:
