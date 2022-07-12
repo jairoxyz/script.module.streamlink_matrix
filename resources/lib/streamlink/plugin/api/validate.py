@@ -24,10 +24,11 @@ from xml.etree import ElementTree as ET
 
 from streamlink.exceptions import PluginError
 
+
 __all__ = [
     "any", "all", "filter", "get", "getattr", "hasattr", "length", "optional",
     "transform", "text", "union", "union_get", "url", "startswith", "endswith", "contains",
-    "xml_element", "xml_find", "xml_findall", "xml_findtext",
+    "xml_element", "xml_find", "xml_findall", "xml_findtext", 
     "validate", "Schema", "SchemaContainer"
 ]
 
@@ -300,7 +301,6 @@ def xml_findtext(xpath):
         xml_find(xpath),
         getattr("text"),
     )
-
 
 @singledispatch
 def validate(schema, value):
