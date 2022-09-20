@@ -126,6 +126,7 @@ class Rtve(Plugin):
         PluginArgument("mux-subtitles", is_global=True),
     )
 
+    URL_M3U8 = "https://ztnr.rtve.es/ztnr/{id}.m3u8"
     URL_VIDEOS = "https://ztnr.rtve.es/ztnr/movil/thumbnail/rtveplayw/videos/{id}.png?q=v2"
     URL_SUBTITLES = "https://www.rtve.es/api/videos/{id}/subtitulos.json"
 
@@ -141,19 +142,25 @@ class Rtve(Plugin):
         if not self.id:
             return
         
-        try:
-            urls = self.session.http.get(self.URL_VIDEOS.format(id=self.id)).text
-            urls = list(ZTNR.translate(urls))
-        except:
-            return
+        # check obfuscated stream URLs via self.URL_VIDEOS and ZTNR.translate() first
+        # self.URL_M3U8 appears to be valid for all streams, but doesn't provide any content in same cases
+        # try:
+        #     urls = self.session.http.get(self.URL_VIDEOS.format(id=self.id)).text
+        #     urls = list(ZTNR.translate(urls))
+        # except:
+        #     return
+        urls = False ### workaround until translate has been fixed
 
-        url = next((url for _, url in urls if urlparse(url).path.endswith(".m3u8")), None)
-        if not url:
-            url = next((url for _, url in urls if urlparse(url).path.endswith(".mp4")), None)
-            if url:
-                yield "vod", HTTPStream(self.session, url)
-                pass
-            return
+        # then fall back to self.URL_M3U8
+        if not urls:
+            url = self.URL_M3U8.format(id=self.id)
+        else:
+            url = next((url for _, url in urls if urlparse(url).path.endswith(".m3u8")), None)
+            if not url:
+                url = next((url for _, url in urls if urlparse(url).path.endswith(".mp4")), None)
+                if url:
+                    yield "vod", HTTPStream(self.session, url)
+                return
 
         streams = HLSStream.parse_variant_playlist(self.session, url).items()
 
@@ -162,9 +169,9 @@ class Rtve(Plugin):
                 _src = self.session.http.get(self.URL_SUBTITLES.format(id=self.id)).text
                 subs = parse_json(_src)["page"]["items"]
             except:
-                pass
+                subs = []
 
-            if subs:
+            if subs and len(subs) > 0:
                 subtitles = {
                     s["lang"]: HTTPStream(self.session, update_scheme("https://", s["src"], force=True))
                     for s in subs
