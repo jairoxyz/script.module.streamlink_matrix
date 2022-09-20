@@ -11,7 +11,7 @@ from base64 import b64decode
 from io import BytesIO
 from urllib.parse import urlparse
 
-from streamlink.plugin import Plugin, PluginArgument, PluginArguments, pluginmatcher
+from streamlink.plugin import Plugin, PluginArgument, PluginError, PluginArguments, pluginmatcher
 from streamlink.utils import parse_json
 from streamlink.stream.ffmpegmux import MuxedStream
 from streamlink.stream.hls import HLSStream
@@ -61,6 +61,14 @@ class Base64Reader:
             raise ValueError("Invalid chunk length")
         self.skip(4)
         return chunktype, chunkdata
+    
+    def __iter__(self):
+        self.skip(8)
+        while True:
+            try:
+                yield self.read_chunk()
+            except ValueError:
+                return
 
 
 class ZTNR:
@@ -105,17 +113,16 @@ class ZTNR:
     @classmethod
     def translate(cls, data):
         reader = Base64Reader(data.replace("\n", ""))
-        reader.skip(8)
-        chunk_type, chunk_data = reader.read_chunk()
-        while chunk_type != "IEND":
+        for chunk_type, chunk_data in reader:
+            if chunk_type == "IEND":
+                break
             if chunk_type == "tEXt":
                 content = "".join(chr(item) for item in chunk_data if item > 0)
-                if "#" not in content or "%%" not in content:  # pragma: no cover
+                if "#" not in content or "%%" not in content:
                     continue
                 alphabet, content = content.split("#", 1)
                 quality, content = content.split("%%", 1)
                 yield quality, cls._get_source(alphabet, content)
-            chunk_type, chunk_data = reader.read_chunk()
 
 
 @pluginmatcher(re.compile(
@@ -144,16 +151,15 @@ class Rtve(Plugin):
         
         # check obfuscated stream URLs via self.URL_VIDEOS and ZTNR.translate() first
         # self.URL_M3U8 appears to be valid for all streams, but doesn't provide any content in same cases
-        # try:
-        #     urls = self.session.http.get(self.URL_VIDEOS.format(id=self.id)).text
-        #     urls = list(ZTNR.translate(urls))
-        # except:
-        #     return
-        urls = False ### workaround until translate has been fixed
-
-        # then fall back to self.URL_M3U8
-        if not urls:
+        try:
+            urls = self.session.http.get(self.URL_VIDEOS.format(id=self.id)).text
+            urls = list(ZTNR.translate(urls))
+            if not urls or len(urls) == 0:
+                raise PluginError   
+        except PluginError:
+            # catch HTTP errors and validation errors, and fall back to generic HLS URL template
             url = self.URL_M3U8.format(id=self.id)
+                 
         else:
             url = next((url for _, url in urls if urlparse(url).path.endswith(".m3u8")), None)
             if not url:
@@ -161,7 +167,7 @@ class Rtve(Plugin):
                 if url:
                     yield "vod", HTTPStream(self.session, url)
                 return
-
+        
         streams = HLSStream.parse_variant_playlist(self.session, url).items()
 
         if self.options.get("mux-subtitles"):
