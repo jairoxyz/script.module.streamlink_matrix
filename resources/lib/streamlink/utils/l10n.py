@@ -1,20 +1,12 @@
 import locale
 import logging
+from typing import Optional
 
-
-try:
-    from iso639 import languages
-    from iso3166 import countries
-
-    PYCOUNTRY = False
-except ImportError:  # pragma: no cover
-    from pycountry import languages, countries
-
-    PYCOUNTRY = True
+from pycountry import countries, languages  # type: ignore[import]
 
 DEFAULT_LANGUAGE = "en"
 DEFAULT_COUNTRY = "US"
-DEFAULT_LANGUAGE_CODE = "{0}_{1}".format(DEFAULT_LANGUAGE, DEFAULT_COUNTRY)
+DEFAULT_LANGUAGE_CODE = f"{DEFAULT_LANGUAGE}_{DEFAULT_COUNTRY}"
 
 log = logging.getLogger(__name__)
 
@@ -30,14 +22,16 @@ class Country:
     @classmethod
     def get(cls, country):
         try:
-            if PYCOUNTRY:
-                c = countries.lookup(country)
-                return Country(c.alpha_2, c.alpha_3, c.numeric, c.name, getattr(c, "official_name", c.name))
-            else:
-                c = countries.get(country)
-                return Country(c.alpha2, c.alpha3, c.numeric, c.name, c.apolitical_name)
+            c = countries.lookup(country)
+            return Country(
+                c.alpha_2,
+                c.alpha_3,
+                c.numeric,
+                c.name,
+                getattr(c, "official_name", c.name)
+            )
         except (LookupError, KeyError):
-            raise LookupError("Invalid country code: {0}".format(country))
+            raise LookupError(f"Invalid country code: {country}")
 
     def __eq__(self, other):
         return (
@@ -66,38 +60,23 @@ class Language:
     @classmethod
     def get(cls, language):
         try:
-            if PYCOUNTRY:
-                lang = (languages.get(alpha_2=language)
-                        or languages.get(alpha_3=language)
-                        or languages.get(bibliographic=language)
-                        or languages.get(name=language))
-                if not lang:
-                    raise KeyError(language)
-                return Language(
-                    # some languages don't have an alpha_2 code
-                    getattr(lang, "alpha_2", ""),
-                    lang.alpha_3,
-                    lang.name,
-                    getattr(lang, "bibliographic", "")
-                )
-            else:
-                lang = None
-                if len(language) == 2:
-                    lang = languages.get(alpha2=language)
-                elif len(language) == 3:
-                    for code_type in ['part2b', 'part2t', 'part3']:
-                        try:
-                            lang = languages.get(**{code_type: language})
-                            break
-                        except KeyError:
-                            pass
-                    if not lang:
-                        raise KeyError(language)
-                else:
-                    raise KeyError(language)
-                return Language(lang.alpha2, lang.part3, lang.name, lang.part2b or lang.part2t)
+            lang = (
+                languages.get(alpha_2=language)
+                or languages.get(alpha_3=language)
+                or languages.get(bibliographic=language)
+                or languages.get(name=language)
+            )
+            if not lang:
+                raise KeyError(language)
+            return Language(
+                # some languages don't have an alpha_2 code
+                getattr(lang, "alpha_2", ""),
+                lang.alpha_3,
+                lang.name,
+                getattr(lang, "bibliographic", "")
+            )
         except (LookupError, KeyError):
-            raise LookupError("Invalid language code: {0}".format(language))
+            raise LookupError(f"Invalid language code: {language}")
 
     def __eq__(self, other):
         return (
@@ -121,24 +100,27 @@ class Localization:
         self.country = None
         self.language = None
         self.explicit = bool(language_code)
-        self.language_code = language_code
+        self._set_language_code(language_code)
 
     @property
     def language_code(self):
         return self._language_code
 
+    @language_code.setter
+    def language_code(self, language_code):
+        self._set_language_code(language_code)
+
     def _parse_locale_code(self, language_code):
         parts = language_code.split("_", 1)
         if len(parts) != 2 or len(parts[0]) != 2 or len(parts[1]) != 2:
-            raise LookupError("Invalid language code: {0}".format(language_code))
+            raise LookupError(f"Invalid language code: {language_code}")
         return self.get_language(parts[0]), self.get_country(parts[1])
 
-    @language_code.setter
-    def language_code(self, language_code):
+    def _set_language_code(self, language_code):
         is_system_locale = language_code is None
-        if language_code is None:
+        if is_system_locale:
             try:
-                language_code, _ = locale.getdefaultlocale()
+                language_code, _ = locale.getlocale()
             except ValueError:
                 language_code = None
             if language_code is None or language_code == "C":
@@ -149,25 +131,23 @@ class Localization:
             self.language, self.country = self._parse_locale_code(language_code)
             self._language_code = language_code
         except LookupError:
-            if is_system_locale:
-                # If the system locale returns an invalid code, use the default
-                self.language = self.get_language(DEFAULT_LANGUAGE)
-                self.country = self.get_country(DEFAULT_COUNTRY)
-                self._language_code = DEFAULT_LANGUAGE_CODE
-            else:
+            if not is_system_locale:
                 raise
-        log.debug("Language code: {0}".format(self._language_code))
+            # If the system locale returns an invalid code, use the default
+            self.language = self.get_language(DEFAULT_LANGUAGE)
+            self.country = self.get_country(DEFAULT_COUNTRY)
+            self._language_code = DEFAULT_LANGUAGE_CODE
+        log.debug(f"Language code: {self._language_code}")
 
-    def equivalent(self, language=None, country=None):
-        equivalent = True
+    def equivalent(self, language: Optional[str] = None, country: Optional[str] = None) -> bool:
         try:
-            equivalent = equivalent and (not language or self.language == self.get_language(language))
-            equivalent = equivalent and (not country or self.country == self.get_country(country))
+            return (
+                (not language or self.language == self.get_language(language))
+                and (not country or self.country == self.get_country(country))
+            )
         except LookupError:
-            # if an unknown language/country code is given they cannot equivalent
+            # if an unknown language/country code is given, they cannot be equivalent
             return False
-
-        return equivalent
 
     @classmethod
     def get_country(cls, country):

@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 class Base64Reader:
-    def __init__(self, data: str):
+    def __init__(self, data):
         stream = BytesIO(b64decode(data))
 
         def _iterate():
